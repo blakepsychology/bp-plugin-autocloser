@@ -269,6 +269,9 @@ class CloserPlugin extends Plugin {
         }
 
         $age_days = (int) $config->get('purge-age-' . $group_id);
+        if (self::DEBUG) {
+            error_log("CloserPlugin: Group $group_id config - from_status: $from_status, age_days: $age_days");
+        }
         if ($age_days < 1) {
             throw new \Exception("Invalid parameter (int) age_days needs to be > 0");
         }
