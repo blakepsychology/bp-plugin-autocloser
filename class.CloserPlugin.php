@@ -34,7 +34,7 @@ class CloserPlugin extends Plugin {
      *
      * @var boolean
      */
-    const DEBUG = FALSE;
+    const DEBUG = TRUE;
 
     /**
      * The name that appears in threads as: Closer Plugin.
@@ -313,6 +313,10 @@ LIMIT %d", TICKET_TABLE, $age_days, $from_status, $whereFilter, $max);
         $ids = array();
         while ($i = db_fetch_array($r)) {
             $ids[] = $i['ticket_id'];
+        }
+
+        if (self::DEBUG) {
+            error_log("CloserPlugin: Found " . count($ids) . " ticket(s) matching criteria for group $group_id");
         }
 
         return $ids;
