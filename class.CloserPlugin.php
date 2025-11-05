@@ -232,7 +232,8 @@ class CloserPlugin extends Plugin {
         }
 
         // Start by setting the last update and closed timestamps to now
-        $ticket->closed = $ticket->lastupdate = SqlFunction::NOW();
+        // Support both osTicket 1.10+ (lastupdate) and 1.18+ (updated)
+        $ticket->closed = $ticket->lastupdate = $ticket->updated = SqlFunction::NOW();
 
         // Remove any duedate or overdue flags
         $ticket->duedate = null;
@@ -291,8 +292,8 @@ class CloserPlugin extends Plugin {
 
         $sql = sprintf(
                 "
-SELECT ticket_id 
-FROM %s WHERE lastupdate < DATE_SUB(NOW(), INTERVAL %d DAY)
+SELECT ticket_id
+FROM %s WHERE updated < DATE_SUB(NOW(), INTERVAL %d DAY)
 AND status_id=%d %s
 ORDER BY ticket_id ASC
 LIMIT %d", TICKET_TABLE, $age_days, $from_status, $whereFilter, $max);
