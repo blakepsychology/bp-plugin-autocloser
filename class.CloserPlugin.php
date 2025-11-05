@@ -297,7 +297,7 @@ LIMIT %d", TICKET_TABLE, $age_days, $from_status, $whereFilter, $max);
         $r = db_query($sql);
         // Fill an array with just the ID's of the tickets:
         $ids = array();
-        while ($i = db_fetch_array($r, MYSQLI_ASSOC)) {
+        while ($i = db_fetch_array($r)) {
             $ids[] = $i['ticket_id'];
         }
 
