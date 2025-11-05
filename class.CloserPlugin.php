@@ -70,6 +70,34 @@ class CloserPlugin extends Plugin {
     }
 
     /**
+     * Workaround to read config directly from database when cache is stale
+     *
+     * @param string $key The config key to read
+     * @param int $group_id The group ID
+     * @return mixed The config value or null
+     */
+    private function read_config_from_db($key, $group_id = null) {
+        $config_key = $group_id ? "$key-$group_id" : $key;
+        $sql = sprintf("SELECT value FROM %sconfig WHERE namespace='plugin.10.instance.5' AND `key`='%s' LIMIT 1",
+            TABLE_PREFIX, db_real_escape($config_key));
+        $result = db_query($sql);
+        if ($result && $row = db_fetch_array($result)) {
+            $value = $row['value'];
+            // Handle JSON values (like {"7":"Auto-Closed"} or {"74":"Canned Response"})
+            if (substr($value, 0, 1) === '{' || substr($value, 0, 1) === '[') {
+                $decoded = json_decode($value, true);
+                if (is_array($decoded)) {
+                    // For associative arrays like {"7":"Auto-Closed"}, return the key
+                    $keys = array_keys($decoded);
+                    return $keys[0] ?? null;
+                }
+            }
+            return $value;
+        }
+        return null;
+    }
+
+    /**
      * Closes old tickets.. with extreme prejudice.. or, regular prejudice..
      * whatever. = Welcome to the 23rd Century. The perfect world of total
      * pleasure. ... there's just one catch.
@@ -108,17 +136,35 @@ class CloserPlugin extends Plugin {
                     }
 
                     // Find the new TicketStatus from the Setting Group config:
-                    $new_status = TicketStatus::lookup(
-                                    array(
-                                        'id' => (int) $config->get('to-status-' . $group_id)
-                    ));
+                    $to_status_id = (int) $config->get('to-status-' . $group_id);
+                    // Workaround: if we got default value (3=Closed), check database
+                    if ($to_status_id == 3) {
+                        $db_status = $this->read_config_from_db('to-status', $group_id);
+                        if ($db_status && $db_status != 3) {
+                            $to_status_id = (int) $db_status;
+                            if (self::DEBUG) {
+                                error_log("CloserPlugin: Using database value for to-status-$group_id: $to_status_id (config cache returned 3)");
+                            }
+                        }
+                    }
+                    $new_status = TicketStatus::lookup(array('id' => $to_status_id));
 
                     // Admin note is just text
                     $admin_note = $config->get('admin-note-' . $group_id) ?: FALSE;
 
-                    // Fetch the actual content of the reply, "html" means load with images, 
+                    // Fetch the actual content of the reply, "html" means load with images,
                     // I don't think it works with attachments though.
                     $admin_reply = $config->get('admin-reply-' . $group_id);
+                    // Workaround: if we got empty/0, check database for canned response
+                    if (!$admin_reply || $admin_reply == '0') {
+                        $db_reply = $this->read_config_from_db('admin-reply', $group_id);
+                        if ($db_reply) {
+                            $admin_reply = $db_reply;
+                            if (self::DEBUG) {
+                                error_log("CloserPlugin: Using database value for admin-reply-$group_id: $admin_reply (config cache returned empty)");
+                            }
+                        }
+                    }
                     if (is_numeric($admin_reply) && $admin_reply) {
                         // We have a valid Canned_Response ID, fetch the actual Canned:
                         $admin_reply = Canned::lookup($admin_reply);
@@ -276,16 +322,11 @@ class CloserPlugin extends Plugin {
 
         // Workaround for config cache issue - read directly from database if we get the default value
         if ($age_days == 999) {
-            $sql = sprintf("SELECT value FROM %sconfig WHERE namespace='plugin.10.instance.5' AND `key`='purge-age-%d' LIMIT 1",
-                TABLE_PREFIX, $group_id);
-            $result = db_query($sql);
-            if ($result && $row = db_fetch_array($result)) {
-                $db_age = (int) $row['value'];
-                if ($db_age > 0 && $db_age != 999) {
-                    $age_days = $db_age;
-                    if (self::DEBUG) {
-                        error_log("CloserPlugin: Using database value for purge-age-$group_id: $age_days (config cache returned 999)");
-                    }
+            $db_age = (int) $this->read_config_from_db('purge-age', $group_id);
+            if ($db_age > 0 && $db_age != 999) {
+                $age_days = $db_age;
+                if (self::DEBUG) {
+                    error_log("CloserPlugin: Using database value for purge-age-$group_id: $age_days (config cache returned 999)");
                 }
             }
         }
