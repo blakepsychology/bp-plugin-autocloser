@@ -85,6 +85,13 @@ class CloserPlugin extends Plugin {
 
                 try {
                     $open_ticket_ids = $this->find_ticket_ids($config, $group_id);
+
+                    // Safety check for null or invalid return
+                    if (!is_array($open_ticket_ids)) {
+                        error_log("CloserPlugin: find_ticket_ids returned non-array value for group $group_id");
+                        continue;
+                    }
+
                     if (self::DEBUG) {
                         error_log(
                                 "CloserPlugin group [$group_id] $group_name has " .
@@ -295,6 +302,13 @@ LIMIT %d", TICKET_TABLE, $age_days, $from_status, $whereFilter, $max);
         }
 
         $r = db_query($sql);
+
+        // Check if query failed
+        if (!$r) {
+            error_log("CloserPlugin: Database query failed - " . db_error());
+            return array();
+        }
+
         // Fill an array with just the ID's of the tickets:
         $ids = array();
         while ($i = db_fetch_array($r)) {
