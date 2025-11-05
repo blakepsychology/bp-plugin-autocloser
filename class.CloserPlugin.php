@@ -76,6 +76,10 @@ class CloserPlugin extends Plugin {
      */
     private function logans_run_mode() {
         $config = $this->getConfig();
+        if (self::DEBUG) {
+            error_log("CloserPlugin: Config namespace: " . get_class($config));
+            error_log("CloserPlugin: Test read purge-age-1: " . $config->get('purge-age-1'));
+        }
         if ($this->is_time_to_run($config)) {
             // Use the number of config groups to run the closer as many times as is needed.
             foreach (range(1, CloserPluginConfig::NUMBER_OF_SETTINGS) as $group_id) {
