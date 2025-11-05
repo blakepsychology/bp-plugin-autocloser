@@ -273,6 +273,23 @@ class CloserPlugin extends Plugin {
         }
 
         $age_days = (int) $config->get('purge-age-' . $group_id);
+
+        // Workaround for config cache issue - read directly from database if we get the default value
+        if ($age_days == 999) {
+            $sql = sprintf("SELECT value FROM %sconfig WHERE namespace='plugin.10.instance.5' AND `key`='purge-age-%d' LIMIT 1",
+                TABLE_PREFIX, $group_id);
+            $result = db_query($sql);
+            if ($result && $row = db_fetch_array($result)) {
+                $db_age = (int) $row['value'];
+                if ($db_age > 0 && $db_age != 999) {
+                    $age_days = $db_age;
+                    if (self::DEBUG) {
+                        error_log("CloserPlugin: Using database value for purge-age-$group_id: $age_days (config cache returned 999)");
+                    }
+                }
+            }
+        }
+
         if (self::DEBUG) {
             error_log("CloserPlugin: Group $group_id config - from_status: $from_status, age_days: $age_days");
         }
